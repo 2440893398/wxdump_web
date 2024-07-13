@@ -36,7 +36,9 @@ const key = ref("");
 const my_wxid = ref("");
 
 const local_wxids = ref([]);
-
+const storageType = ref("local");
+const configItems = ref([]);
+const dynamicConfig = ref<Record<string, string>>({});
 
 const emits = defineEmits(['isAutoShow']); // 用于父组件监听子组件的事件
 
@@ -123,6 +125,13 @@ const init_nokey = async () => {
       "merge_path": merge_path.value,
       "my_wxid": my_wxid.value
     }
+    // 使用对象存储时才需要配置
+    if (storageType.value !== 'local'){
+      reqdata.oss_config = JSON.stringify({
+        "oss_type_key": storageType.value,
+        ...dynamicConfig.value,
+      });
+    }
     const body_data = await http.post('/api/init_nokey', reqdata);
     is_init.value = body_data.is_init;
     if (body_data.is_init) {
@@ -139,23 +148,46 @@ const init_nokey = async () => {
       callback: (action: Action) => {
         init_type.value = "";// 刷新
       },
-    })
-    // console.error('Error fetching data:', error);
+    });
     return [];
   }
   decryping.value = false;
-}
+};
+
+// 方法：检查存储类型
+async function checkStorageType(path: string) {
+  if (!path) {
+    return
+  }
+  try {
+    const response = await http.post('/api/check_storage_type', {path: path});
+    console.log(response)
+    if (response.is_supported) {
+      storageType.value = response.storage_type;
+      configItems.value = response.config_items;
+      dynamicConfig.value = {};
+      response.config_items.forEach((item: { key: string }) => {
+        dynamicConfig.value[item.key] = '';
+      });
+    } else {
+      storageType.value = "local";
+      configItems.value = [];
+      dynamicConfig.value = {};
+    }
+  } catch (error) {
+    console.error('Error checking storage type:', error);
+  }
+};
 
 const selectLastWx = async (row: wxinfo) => {
-  // console.log(row)
   my_wxid.value = row.wxid;
-}
+};
 
 const get_init_last_local_wxid = async () => {
   try {
     const body_data = await http.post('/api/init_last_local_wxid'); //[ 'wx1234567890', 'wx0987654321' ]
     local_wxids.value = body_data.local_wxids.map((item: string) => {
-      return {wxid: item}
+      return { wxid: item };
     });
 
     if (local_wxids.value.length === 1) {
@@ -167,16 +199,15 @@ const get_init_last_local_wxid = async () => {
     console.error('Error fetching data:', error);
     return [];
   }
-}
+};
 
 const init_last = async () => {
   try {
-    let reqdata = {
+    const reqdata = {
       "wx_path": wx_path.value,
       "merge_path": merge_path.value,
       "my_wxid": my_wxid.value
-    }
-    console.log(reqdata);
+    };
     const body_data = await http.post('/api/init_last', reqdata);
     is_init.value = body_data.is_init;
     if (body_data.is_init) {
@@ -191,7 +222,7 @@ const init_last = async () => {
         callback: (action: Action) => {
           init_type.value = "";// 刷新
         },
-      })
+      });
     }
 
     decryping.value = false;
@@ -204,15 +235,14 @@ const init_last = async () => {
       callback: (action: Action) => {
         init_type.value = "";
       },
-    })
-    // console.error('Error fetching data:', error);
+    });
     return [];
   }
 
   decryping.value = false;
-}
+};
 
-// 监测isAutoShow是否为aoto，如果是则执行get_wxinfo
+// 监测isAutoShow是否为auto，如果是则执行get_wxinfo
 watch(init_type, (val) => {
   if (val === 'auto') {
     get_wxinfo();
@@ -222,8 +252,7 @@ watch(init_type, (val) => {
     get_init_last_local_wxid();
     // init_last();
   }
-})
-
+});
 </script>
 
 <template>
@@ -292,16 +321,32 @@ watch(init_type, (val) => {
           </div>
           <div v-if="isUseKey=='false'">
             <label>merge_all.db 文件路径(必填,非文件夹): </label>
-            <el-input placeholder="(MediaMSG.db,MSG.db,MicroMsg.db,OpenIMMsg.db)合并后的数据库" v-model="merge_path"
+            <el-input placeholder="(MediaMSG.db,MSG.db,MicroMsg.db,OpenIMMsg.db)合并后的数据库" v-model="merge_path"  @blur="checkStorageType(merge_path)"
                       style="width: 80%;"></el-input>
             <br>
           </div>
           <label>微信文件夹路径(必填): </label>
-          <el-input placeholder="C:\***\WeChat Files\wxid_*******" v-model="wx_path" style="width: 80%;"></el-input>
+          <el-input placeholder="C:\***\WeChat Files\wxid_*******" v-model="wx_path"  @blur="checkStorageType(wx_path)"  style="width: 80%;"></el-input>
           <br>
           <label>微信原始id(必填): </label>
           <el-input placeholder="wxid_*******" v-model="my_wxid" style="width: 80%;"></el-input>
           <br>
+
+          <!-- 存储类型选择器 -->
+          <label>存储类型: </label>
+          <el-select v-model="storageType" placeholder="请选择存储类型" style="width: 80%;" disabled>
+            <el-option label="本地文件系统" value="local"></el-option>
+            <el-option label="S3" value="s3"></el-option>
+            <el-option label="其他对象存储" value="other"></el-option>
+          </el-select>
+          <br>
+
+          <!-- 动态配置项 -->
+          <div v-for="item in configItems" :key="item.key">
+            <label>{{ item.label }}: </label>
+            <el-input :placeholder="item.placeholder" v-model="dynamicConfig[item.key]" style="width: 80%;" />
+            <br />
+          </div>
 
           <el-button v-if="isUseKey=='true'" style="margin-top: 10px;width: 100%;" type="success" @click="init_key">
             确定

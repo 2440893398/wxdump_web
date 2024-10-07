@@ -23,7 +23,7 @@ onMounted(() => {
     <div>
       <el-container>
         <!--  这是左边的list    -->
-        <el-aside width="auto" style="overflow-y: auto; height: calc(100vh);">
+        <el-aside width="auto" style="overflow-y: auto; height: calc(100vh);  border-left: 0.5px solid #ebeef5;">
           <ContactsList @wxid="(val: any) => {  wxid = val;}"/>
         </el-aside>
         <!-- END 这是左边的list -->

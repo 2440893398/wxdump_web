@@ -36,6 +36,26 @@ export const apiUserSessionList = () => {
             return [];
         })
 }
+
+
+interface ISearch {
+    query:string
+    type:string
+    page:number
+    pagesize:number
+}
+export const apiSearch = (data:ISearch) => {
+    return http.get('/api/rs/search', {params:data})
+        .then((res: any) => {
+            return res;
+        })
+        .catch((err: any) => {
+            console.log(err);
+            return [];
+        })
+}
+
+
 export const apiMyWxid = () => {
     if (is_local_data) {
         return l_mywxid;
